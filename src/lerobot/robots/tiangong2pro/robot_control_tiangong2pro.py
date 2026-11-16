@@ -9,10 +9,9 @@ surface replaced:
 - head: 3 joints (head_yaw / head_pitch / head_roll), observation only,
 - base frame: "pelvis" (the URDF has no base_link),
 - no chassis: no /odom or /ecu/cmd_vel subscription, no chassis state/action,
-- gripper: observation comes from the VR trigger (same as the Astrabot node);
-  commanding the gripper is opt-in via GRIPPER_CMD_TOPIC_LEFT / GRIPPER_CMD_TOPIC_RIGHT
-  so the same code runs on the simulation stack (which has no gripper) and on the
-  real robot (set the topics when known).
+- gripper: observation comes from the gripper controller feedback; commanding the
+  gripper is opt-in via GRIPPER_CMD_TOPIC_LEFT / GRIPPER_CMD_TOPIC_RIGHT so the same
+  code runs on the simulation stack (which has no gripper).
 
 The /reference/pose JSON contract is unchanged (xyzw quaternion), which is what the
 tiangong2pro MPC stack (astrabot_arbitration -> /reference/cmd -> MPC/MRT) consumes.
@@ -129,6 +128,17 @@ class Tiangong2ProRobotController(Node):
         self._joint_states_received = False
 
         self.create_subscription(JointState, "/joint_states", self._joint_states_callback, 10)
+        for side in ("left", "right"):
+            topic = os.getenv(
+                f"GRIPPER_STATE_TOPIC_{side.upper()}",
+                f"/{side}_gripper_controller/states",
+            )
+            self.create_subscription(
+                Float64,
+                topic,
+                lambda msg, side=side: self._gripper_state_callback(side, msg),
+                10,
+            )
 
     def setup(self):
         print("[tiangong2pro_robot_controller]: Setting up ....")
@@ -312,7 +322,6 @@ class Tiangong2ProRobotController(Node):
             gripper_position = 0.0
         self.gripper_state[side]['filtered'] = filtered
         self.gripper_state[side]['cmd'] = gripper_position
-        self.gripper_state[side]['state'] = gripper_position
         # if side == "right":
         #     print(f'girpper_position = {gripper_position}', flush=True)
 
@@ -488,6 +497,11 @@ class Tiangong2ProRobotController(Node):
             for idx, name in enumerate(joint_names):
                 if name in msg.name:
                     self.joint_positions[side][idx] = msg.position[msg.name.index(name)]
+
+    def _gripper_state_callback(self, side: Literal['left', 'right'], msg: Float64) -> None:
+        value = float(msg.data)
+        if np.isfinite(value):
+            self.gripper_state[side]['state'] = float(np.clip(value, 0.0, 1.0))
 
     def reset(self) -> None:
         """Return both arms to the initial pose (long-press B).
