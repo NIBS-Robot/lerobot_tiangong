@@ -53,6 +53,8 @@ class PI0Config(PreTrainedConfig):
     use_relative_actions: bool = False
     # Joint names to exclude from relative (kept absolute). Empty list = all dims relative.
     relative_exclude_joints: list[str] = field(default_factory=lambda: ["gripper"])
+    # Optional action-dim -> state-dim mapping for non-aligned state/action layouts.
+    relative_state_indices: list[int] | None = None
     # Populated at runtime from dataset metadata by make_policy.
     action_feature_names: list[str] | None = None
 

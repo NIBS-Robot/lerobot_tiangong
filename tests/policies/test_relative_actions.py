@@ -105,6 +105,20 @@ def test_exclude_joints_supports_partial_name_matching():
     assert step._build_mask(len(names)) == [True, False, True, False]
 
 
+def test_state_indices_map_action_dims_to_non_aligned_state_dims():
+    actions = torch.randn(2, CHUNK_SIZE, 4)
+    state = torch.randn(2, 6)
+    state_indices = [4, 5, -1, -1]
+    mask = [True, True, False, False]
+
+    relative = to_relative_actions(actions, state, mask, state_indices)
+    torch.testing.assert_close(relative[..., :2], actions[..., :2] - state[..., None, 4:6])
+    torch.testing.assert_close(relative[..., 2:], actions[..., 2:])
+
+    recovered = to_absolute_actions(relative, state, mask, state_indices)
+    torch.testing.assert_close(recovered, actions)
+
+
 # Chunk-level relative stats test
 
 

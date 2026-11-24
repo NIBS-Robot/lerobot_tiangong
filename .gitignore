@@ -180,3 +180,7 @@ outputs/
 checkpoints/
 
 dataset_*
+
+*.zip
+
+data/*
